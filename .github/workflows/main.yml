@@ -20,7 +20,7 @@ env:
 
 jobs:
   convert-to-musicxml:
-    runs-on: ubuntu-24.04   # 匹配 .deb 包的系统版本
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -32,10 +32,24 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Audiveris from provided .deb
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr libtesseract5 libtiff6 libjpeg8 libpng16-16
+
+      - name: Extract and install Audiveris from .deb (skip postinst)
         run: |
           wget https://github.com/Audiveris/audiveris/releases/download/5.10.2/Audiveris-5.10.2-ubuntu24.04-x86_64.deb
-          sudo dpkg -i Audiveris-5.10.2-ubuntu24.04-x86_64.deb || sudo apt-get install -f -y
+          ar x Audiveris-5.10.2-ubuntu24.04-x86_64.deb data.tar.xz
+          sudo tar -xf data.tar.xz -C /
+          # 验证安装
+          if [ -f /usr/bin/Audiveris ]; then
+            echo "Audiveris installed successfully"
+          else
+            echo "Audiveris not found in /usr/bin"
+            find / -name Audiveris -type f 2>/dev/null
+            exit 1
+          fi
 
       - name: Create output directory
         run: mkdir -p ${{ env.OUTPUT_DIR }}
@@ -47,7 +61,7 @@ jobs:
             INPUT_FILE="${{ github.event.inputs.input_file }}"
             if [[ -f "$INPUT_FILE" ]]; then
               echo "Processing: $INPUT_FILE"
-              Audiveris -batch -input "$INPUT_FILE" -output ${{ env.OUTPUT_DIR }} -export MusicXML
+              /usr/bin/Audiveris -batch -input "$INPUT_FILE" -output ${{ env.OUTPUT_DIR }} -export MusicXML
             else
               echo "Error: File not found: $INPUT_FILE"
               exit 1
@@ -57,7 +71,7 @@ jobs:
               for file in ${{ env.INPUT_DIR }}/*.$ext; do
                 if [[ -f "$file" ]]; then
                   echo "Processing: $file"
-                  Audiveris -batch -input "$file" -output ${{ env.OUTPUT_DIR }} -export MusicXML
+                  /usr/bin/Audiveris -batch -input "$file" -output ${{ env.OUTPUT_DIR }} -export MusicXML
                 fi
               done
             done
