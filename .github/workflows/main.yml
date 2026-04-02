@@ -17,6 +17,7 @@ on:
 env:
   INPUT_DIR: scores
   OUTPUT_DIR: musicxml_output
+  AUDIVERIS_PATH: /opt/audiveris/bin/Audiveris
 
 jobs:
   convert-to-musicxml:
@@ -37,18 +38,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y tesseract-ocr libtesseract5 libtiff6 libjpeg8 libpng16-16 zstd
 
-      - name: Extract and install Audiveris from .deb (supports zst)
+      - name: Extract and install Audiveris from .deb
         run: |
           wget https://github.com/Audiveris/audiveris/releases/download/5.10.2/Audiveris-5.10.2-ubuntu24.04-x86_64.deb
           ar x Audiveris-5.10.2-ubuntu24.04-x86_64.deb
-          # 找到 data.tar 文件（可能是 .xz 或 .zst）
           DATA_FILE=$(ls data.tar.* 2>/dev/null | head -1)
           if [[ -z "$DATA_FILE" ]]; then
             echo "No data.tar.* file found"
             exit 1
           fi
           echo "Found $DATA_FILE"
-          # 根据扩展名解压到根目录
           if [[ "$DATA_FILE" == *.xz ]]; then
             sudo tar -xf "$DATA_FILE" -C /
           elif [[ "$DATA_FILE" == *.zst ]]; then
@@ -56,12 +55,12 @@ jobs:
           else
             sudo tar -xf "$DATA_FILE" -C /
           fi
-          # 验证安装
-          if [ -f /usr/bin/Audiveris ]; then
-            echo "Audiveris installed successfully"
+          # 验证可执行文件存在
+          if [[ -f "${{ env.AUDIVERIS_PATH }}" ]]; then
+            echo "Audiveris installed at ${{ env.AUDIVERIS_PATH }}"
           else
-            echo "Warning: Audiveris not found in /usr/bin, searching..."
-            find / -name Audiveris -type f 2>/dev/null
+            echo "Error: Audiveris not found at expected location"
+            find /opt -name Audiveris -type f 2>/dev/null || echo "Not found"
             exit 1
           fi
 
@@ -71,11 +70,14 @@ jobs:
       - name: Convert to MusicXML
         shell: bash
         run: |
+          # 设置库路径，以防动态库缺失
+          export LD_LIBRARY_PATH=/opt/audiveris/lib:$LD_LIBRARY_PATH
+          
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.input_file }}" ]]; then
             INPUT_FILE="${{ github.event.inputs.input_file }}"
             if [[ -f "$INPUT_FILE" ]]; then
               echo "Processing: $INPUT_FILE"
-              /usr/bin/Audiveris -batch -input "$INPUT_FILE" -output ${{ env.OUTPUT_DIR }} -export MusicXML
+              ${{ env.AUDIVERIS_PATH }} -batch -input "$INPUT_FILE" -output ${{ env.OUTPUT_DIR }} -export MusicXML
             else
               echo "Error: File not found: $INPUT_FILE"
               exit 1
@@ -85,7 +87,7 @@ jobs:
               for file in ${{ env.INPUT_DIR }}/*.$ext; do
                 if [[ -f "$file" ]]; then
                   echo "Processing: $file"
-                  /usr/bin/Audiveris -batch -input "$file" -output ${{ env.OUTPUT_DIR }} -export MusicXML
+                  ${{ env.AUDIVERIS_PATH }} -batch -input "$file" -output ${{ env.OUTPUT_DIR }} -export MusicXML
                 fi
               done
             done
