@@ -55,7 +55,6 @@ jobs:
           else
             sudo tar -xf "$DATA_FILE" -C /
           fi
-          # 验证可执行文件存在
           if [[ -f "${{ env.AUDIVERIS_PATH }}" ]]; then
             echo "Audiveris installed at ${{ env.AUDIVERIS_PATH }}"
           else
@@ -70,14 +69,12 @@ jobs:
       - name: Convert to MusicXML
         shell: bash
         run: |
-          # 设置库路径，以防动态库缺失
           export LD_LIBRARY_PATH=/opt/audiveris/lib:$LD_LIBRARY_PATH
-          
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.input_file }}" ]]; then
             INPUT_FILE="${{ github.event.inputs.input_file }}"
             if [[ -f "$INPUT_FILE" ]]; then
               echo "Processing: $INPUT_FILE"
-              ${{ env.AUDIVERIS_PATH }} -batch -input "$INPUT_FILE" -output ${{ env.OUTPUT_DIR }} -export MusicXML
+              ${{ env.AUDIVERIS_PATH }} -batch "$INPUT_FILE" -output ${{ env.OUTPUT_DIR }} -export
             else
               echo "Error: File not found: $INPUT_FILE"
               exit 1
@@ -87,7 +84,7 @@ jobs:
               for file in ${{ env.INPUT_DIR }}/*.$ext; do
                 if [[ -f "$file" ]]; then
                   echo "Processing: $file"
-                  ${{ env.AUDIVERIS_PATH }} -batch -input "$file" -output ${{ env.OUTPUT_DIR }} -export MusicXML
+                  ${{ env.AUDIVERIS_PATH }} -batch "$file" -output ${{ env.OUTPUT_DIR }} -export
                 fi
               done
             done
