@@ -90,9 +90,8 @@ jobs:
             done
           fi
 
-      - name: Upload MusicXML artifacts
+      - name: Upload all output files
         uses: actions/upload-artifact@v4
         with:
-          name: musicxml-output
-          path: ${{ env.OUTPUT_DIR }}/*.musicxml
-          if-no-files-found: warn
+          name: audiveris-output
+          path: ${{ env.OUTPUT_DIR }}/
