@@ -20,50 +20,49 @@ env:
 
 jobs:
   convert-to-musicxml:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # 匹配 .deb 包的系统版本
 
     steps:
-      # 1. 检出代码
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. 创建输出目录
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Audiveris from provided .deb
+        run: |
+          wget https://github.com/Audiveris/audiveris/releases/download/5.10.2/Audiveris-5.10.2-ubuntu24.04-x86_64.deb
+          sudo dpkg -i Audiveris-5.10.2-ubuntu24.04-x86_64.deb || sudo apt-get install -f -y
+
       - name: Create output directory
         run: mkdir -p ${{ env.OUTPUT_DIR }}
 
-      # 3. 使用 Docker 容器运行 Audiveris
-      - name: Run Audiveris OMR
-        uses: addnab/docker-run-action@v3
-        with:
-          image: toprock/audiveris:latest
-          options: -v ${{ github.workspace }}:/work
-          run: |
-            cd /work
-            mkdir -p ${{ env.OUTPUT_DIR }}
-
-            # 手动触发模式：处理指定的单个文件
-            if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.input_file }}" ]; then
-              INPUT_FILE="${{ github.event.inputs.input_file }}"
-              if [ -f "$INPUT_FILE" ]; then
-                echo "Processing: $INPUT_FILE"
-                Audiveris -batch -input "$INPUT_FILE" -output ${{ env.OUTPUT_DIR }} -export MusicXML
-              else
-                echo "Error: Input file not found: $INPUT_FILE"
-                exit 1
-              fi
+      - name: Convert to MusicXML
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.input_file }}" ]]; then
+            INPUT_FILE="${{ github.event.inputs.input_file }}"
+            if [[ -f "$INPUT_FILE" ]]; then
+              echo "Processing: $INPUT_FILE"
+              Audiveris -batch -input "$INPUT_FILE" -output ${{ env.OUTPUT_DIR }} -export MusicXML
             else
-              # 自动模式：处理 scores 目录下所有支持的图片/PDF
-              for ext in jpg jpeg png pdf; do
-                for file in ${{ env.INPUT_DIR }}/*.$ext; do
-                  if [ -f "$file" ]; then
-                    echo "Processing: $file"
-                    Audiveris -batch -input "$file" -output ${{ env.OUTPUT_DIR }} -export MusicXML
-                  fi
-                done
-              done
+              echo "Error: File not found: $INPUT_FILE"
+              exit 1
             fi
+          else
+            for ext in jpg jpeg png pdf; do
+              for file in ${{ env.INPUT_DIR }}/*.$ext; do
+                if [[ -f "$file" ]]; then
+                  echo "Processing: $file"
+                  Audiveris -batch -input "$file" -output ${{ env.OUTPUT_DIR }} -export MusicXML
+                fi
+              done
+            done
+          fi
 
-      # 4. 上传生成的 MusicXML 文件作为 Artifact
       - name: Upload MusicXML artifacts
         uses: actions/upload-artifact@v4
         with:
