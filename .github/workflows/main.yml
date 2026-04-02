@@ -35,18 +35,32 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y tesseract-ocr libtesseract5 libtiff6 libjpeg8 libpng16-16
+          sudo apt-get install -y tesseract-ocr libtesseract5 libtiff6 libjpeg8 libpng16-16 zstd
 
-      - name: Extract and install Audiveris from .deb (skip postinst)
+      - name: Extract and install Audiveris from .deb (supports zst)
         run: |
           wget https://github.com/Audiveris/audiveris/releases/download/5.10.2/Audiveris-5.10.2-ubuntu24.04-x86_64.deb
-          ar x Audiveris-5.10.2-ubuntu24.04-x86_64.deb data.tar.xz
-          sudo tar -xf data.tar.xz -C /
+          ar x Audiveris-5.10.2-ubuntu24.04-x86_64.deb
+          # 找到 data.tar 文件（可能是 .xz 或 .zst）
+          DATA_FILE=$(ls data.tar.* 2>/dev/null | head -1)
+          if [[ -z "$DATA_FILE" ]]; then
+            echo "No data.tar.* file found"
+            exit 1
+          fi
+          echo "Found $DATA_FILE"
+          # 根据扩展名解压到根目录
+          if [[ "$DATA_FILE" == *.xz ]]; then
+            sudo tar -xf "$DATA_FILE" -C /
+          elif [[ "$DATA_FILE" == *.zst ]]; then
+            sudo tar --zstd -xf "$DATA_FILE" -C /
+          else
+            sudo tar -xf "$DATA_FILE" -C /
+          fi
           # 验证安装
           if [ -f /usr/bin/Audiveris ]; then
             echo "Audiveris installed successfully"
           else
-            echo "Audiveris not found in /usr/bin"
+            echo "Warning: Audiveris not found in /usr/bin, searching..."
             find / -name Audiveris -type f 2>/dev/null
             exit 1
           fi
